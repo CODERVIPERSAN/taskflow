@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow - Self-Balancing Task Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.4.0/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .card-glass {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+        .score-positive { color: #ef4444; font-weight: bold; }
+        .score-negative { color: #10b981; font-weight: bold; }
+        .score-zero { color: #6b7280; font-weight: bold; }
+        .task-card {
+            transition: all 0.3s ease;
+            margin-bottom: 1rem;
+        }
+        .task-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+        }
+        .btn-complete {
+            background: linear-gradient(45deg, #10b981, #059669);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 8px 16px;
+            transition: all 0.3s ease;
+        }
+        .btn-complete:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+        }
+        .btn-add {
+            background: linear-gradient(45deg, #3b82f6, #1d4ed8);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 10px 20px;
+        }
+        .btn-daily {
+            background: linear-gradient(45deg, #f59e0b, #d97706);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 10px 20px;
+        }
+        .total-score-card {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            padding: 25px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .navbar-glass {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .nav-link {
+            color: white !important;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .nav-link:hover {
+            color: #fbbf24 !important;
+            transform: translateY(-2px);
+        }
+        .nav-link.active {
+            color: #fbbf24 !important;
+            font-weight: 600;
+        }
+        .section {
+            display: none;
+        }
+        .section.active {
+            display: block;
+        }
+        .feature-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .stats-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation Bar -->
+        <nav class="navbar navbar-expand-lg navbar-glass mb-4">
+            <div class="container">
+                <a class="navbar-brand text-white fw-bold" href="#">
+                    <i class="fas fa-balance-scale me-2"></i>TaskFlow
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" :class="{active: currentSection === 'dashboard'}" @click="setSection('dashboard')" href="#">
+                                <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" :class="{active: currentSection === 'tasks'}" @click="setSection('tasks')" href="#">
+                                <i class="fas fa-tasks me-1"></i>Tasks
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" :class="{active: currentSection === 'analytics'}" @click="setSection('analytics')" href="#">
+                                <i class="fas fa-chart-line me-1"></i>Analytics
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" :class="{active: currentSection === 'help'}" @click="setSection('help')" href="#">
+                                <i class="fas fa-question-circle me-1"></i>Help
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container mx-auto p-4" style="max-width: 1200px;">
+            <!-- Header -->
+            <div class="text-center mb-5" v-if="currentSection === 'dashboard'">
+                <h1 class="text-5xl text-white mb-2 font-bold">
+                    <i class="fas fa-balance-scale"></i> Self-Balancing Task Manager
+                </h1>
+                <p class="text-white opacity-80">Keep your tasks balanced with numerical feedback</p>
+            </div>
+
+            <!-- Dashboard Section -->
+            <div class="section" :class="{active: currentSection === 'dashboard'}">
+                <!-- Total Score Display -->
+                <div class="total-score-card">
+                    <h2 class="text-3xl text-white mb-2">Neutrality Score</h2>
+                    <div class="text-6xl mb-2" :class="neutralityClass">{{ totalScore }}</div>
+                    <p class="text-white opacity-80">
+                        {{ totalScore > 0 ? 'Focus needed! Complete more tasks' : 
+                           totalScore < 0 ? 'Great job! You\'re ahead of schedule' : 
+                           'Perfect balance achieved!' }}
+                    </p>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-3">
+                        <div class="stats-card p-3 text-center">
+                            <i class="fas fa-tasks text-white fs-2 mb-2"></i>
+                            <h5 class="text-white">Total Tasks</h5>
+                            <h3 class="text-white">{{ tasks.length }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="stats-card p-3 text-center">
+                            <i class="fas fa-arrow-up text-danger fs-2 mb-2"></i>
+                            <h5 class="text-white">Need Attention</h5>
+                            <h3 class="text-white">{{ tasksNeedingAttention }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="stats-card p-3 text-center">
+                            <i class="fas fa-arrow-down text-success fs-2 mb-2"></i>
+                            <h5 class="text-white">Ahead</h5>
+                            <h3 class="text-white">{{ tasksAhead }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="stats-card p-3 text-center">
+                            <i class="fas fa-balance-scale text-warning fs-2 mb-2"></i>
+                            <h5 class="text-white">Balanced</h5>
+                            <h3 class="text-white">{{ tasksBalanced }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <button class="btn btn-daily w-100" @click="applyDailyIncrement">
+                        <i class="fas fa-calendar-day"></i> Apply Daily Increment
+                    </button>
+                </div>
+                <div class="col-md-6">
+                    <button class="btn btn-add w-100" @click="showAddForm = !showAddForm">
+                        <i class="fas fa-plus"></i> Add New Task
+                    </button>
+                </div>
+            </div>
+
+            <!-- Add Task Form -->
+            <div v-if="showAddForm" class="card-glass p-4 mb-4">
+                <h3 class="text-xl text-white mb-3">Add New Task</h3>
+                <div class="row">
+                    <div class="col-md-4">
+                        <input v-model="newTask.name" class="form-control mb-2" placeholder="Task Name" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input v-model.number="newTask.score" type="number" class="form-control mb-2" placeholder="Initial Score">
+                    </div>
+                    <div class="col-md-3">
+                        <input v-model.number="newTask.daily_increment" type="number" class="form-control mb-2" placeholder="Daily +">
+                    </div>
+                    <div class="col-md-2">
+                        <button @click="addTask" class="btn btn-success w-100">Add</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Task List -->
+            <div class="row">
+                <div v-for="task in tasks" :key="task.id" class="col-md-6 mb-3">
+                    <div class="task-card card-glass p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h3 class="text-lg text-white mb-0">{{ task.name }}</h3>
+                            <button @click="deleteTask(task.id)" class="btn btn-sm btn-danger">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-4xl mb-2" :class="getScoreClass(task.score)">
+                                {{ task.score }}
+                            </div>
+                            <div class="text-white opacity-70 mb-3">
+                                Daily +{{ task.daily_increment }}
+                            </div>
+                            <button @click="completeTask(task.id)" class="btn-complete">
+                                <i class="fas fa-check"></i> Complete Task (-1)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Log -->
+            <div class="card-glass p-4 mt-5">
+                <h3 class="text-xl text-white mb-3">
+                    <i class="fas fa-history"></i> Recent Activity
+                </h3>
+                <div class="row">
+                    <div v-for="log in logs" :key="log.id" class="col-12 mb-2">
+                        <div class="text-white opacity-80">
+                            <span class="fw-bold">{{ log.task_name }}</span> - {{ log.action }} 
+                            <small class="opacity-60">({{ formatDate(log.timestamp) }})</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    currentSection: 'dashboard',
+                    tasks: [],
+                    logs: [],
+                    showAddForm: false,
+                    newTask: {
+                        name: '',
+                        score: 0,
+                        daily_increment: 3
+                    },
+                    apiBaseUrl: 'http://127.0.0.1:5000/api'
+                };
+            },
+            computed: {
+                totalScore() {
+                    return this.tasks.reduce((acc, task) => acc + task.score, 0);
+                },
+                neutralityClass() {
+                    return this.totalScore > 0 ? 'score-positive' : 
+                           this.totalScore < 0 ? 'score-negative' : 'score-zero';
+                },
+                tasksNeedingAttention() {
+                    return this.tasks.filter(task => task.score > 0).length;
+                },
+                tasksAhead() {
+                    return this.tasks.filter(task => task.score < 0).length;
+                },
+                tasksBalanced() {
+                    return this.tasks.filter(task => task.score === 0).length;
+                }
+            },
+            methods: {
+                setSection(section) {
+                    this.currentSection = section;
+                },
+                async fetchTasks() {
+                    try {
+                        const response = await axios.get(`${this.apiBaseUrl}/tasks`);
+                        this.tasks = response.data;
+                    } catch (error) {
+                        console.error('Error fetching tasks:', error);
+                        // Fallback data if backend is not running
+                        this.tasks = [
+                            { id: 1, name: 'Design Pattern', score: 4, daily_increment: 3 },
+                            { id: 2, name: 'GFG, TUF', score: 11, daily_increment: 3 },
+                            { id: 3, name: 'GitHub Recap', score: -4, daily_increment: 3 },
+                            { id: 4, name: 'Duolingo', score: -13, daily_increment: 3 },
+                            { id: 5, name: 'Pushups', score: 29, daily_increment: 5 }
+                        ];
+                    }
+                },
+                async fetchLogs() {
+                    try {
+                        const response = await axios.get(`${this.apiBaseUrl}/logs`);
+                        this.logs = response.data.slice(0, 10); // Show last 10 logs
+                    } catch (error) {
+                        console.error('Error fetching logs:', error);
+                    }
+                },
+                async completeTask(taskId) {
+                    try {
+                        await axios.post(`${this.apiBaseUrl}/tasks/${taskId}/complete`);
+                        await this.fetchTasks();
+                        await this.fetchLogs();
+                    } catch (error) {
+                        // Fallback: update locally
+                        const task = this.tasks.find(t => t.id === taskId);
+                        if (task) task.score--;
+                        console.error('Error completing task:', error);
+                    }
+                },
+                async addTask() {
+                    if (!this.newTask.name) return;
+                    
+                    try {
+                        await axios.post(`${this.apiBaseUrl}/tasks/add`, this.newTask);
+                        await this.fetchTasks();
+                        this.newTask = { name: '', score: 0, daily_increment: 3 };
+                        this.showAddForm = false;
+                    } catch (error) {
+                        // Fallback: add locally
+                        const newId = Math.max(...this.tasks.map(t => t.id)) + 1;
+                        this.tasks.push({
+                            id: newId,
+                            name: this.newTask.name,
+                            score: this.newTask.score,
+                            daily_increment: this.newTask.daily_increment
+                        });
+                        this.newTask = { name: '', score: 0, daily_increment: 3 };
+                        this.showAddForm = false;
+                        console.error('Error adding task:', error);
+                    }
+                },
+                async deleteTask(taskId) {
+                    try {
+                        await axios.delete(`${this.apiBaseUrl}/tasks/${taskId}`);
+                        await this.fetchTasks();
+                    } catch (error) {
+                        // Fallback: delete locally
+                        this.tasks = this.tasks.filter(t => t.id !== taskId);
+                        console.error('Error deleting task:', error);
+                    }
+                },
+                async applyDailyIncrement() {
+                    try {
+                        await axios.post(`${this.apiBaseUrl}/daily-increment`);
+                        await this.fetchTasks();
+                        await this.fetchLogs();
+                    } catch (error) {
+                        // Fallback: apply locally
+                        this.tasks.forEach(task => {
+                            task.score += task.daily_increment;
+                        });
+                        console.error('Error applying daily increment:', error);
+                    }
+                },
+                getScoreClass(score) {
+                    return score > 0 ? 'score-positive' : score < 0 ? 'score-negative' : 'score-zero';
+                },
+                formatDate(timestamp) {
+                    if (!timestamp) return '';
+                    return new Date(timestamp).toLocaleString();
+                }
+            },
+            mounted() {
+                this.fetchTasks();
+                this.fetchLogs();
+                
+                // Auto-refresh every 30 seconds
+                setInterval(() => {
+                    this.fetchTasks();
+                    this.fetchLogs();
+                }, 30000);
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
