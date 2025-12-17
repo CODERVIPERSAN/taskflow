@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow - Self-Balancing Task Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        body { background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%); min-height: 100vh; }
+        .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); }
+        .score-critical { color: #ef4444; text-shadow: 0 0 30px rgba(239,68,68,0.5); }
+        .score-attention { color: #f97316; }
+        .score-balanced { color: #6b7280; }
+        .score-ahead { color: #10b981; text-shadow: 0 0 30px rgba(16,185,129,0.5); }
+        .card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+        .card { transition: all 0.3s ease; }
+        .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+        .btn-primary:hover { box-shadow: 0 10px 30px rgba(99,102,241,0.4); transform: scale(1.02); }
+        .priority-high { border-left: 3px solid #ef4444; }
+        .priority-medium { border-left: 3px solid #f59e0b; }
+        .priority-low { border-left: 3px solid #6b7280; }
+        .animate-in { animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .streak-fire { animation: fire 0.5s ease infinite alternate; }
+        @keyframes fire { from { transform: scale(1); } to { transform: scale(1.1); } }
+    </style>
+</head>
+<body class="text-gray-100">
+    <div id="app" class="flex min-h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 glass border-r border-white/5 p-6 flex flex-col fixed h-screen">
+            <div class="flex items-center gap-3 mb-8">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                    <i class="fas fa-bolt text-white"></i>
+                </div>
+                <span class="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">TaskFlow</span>
+            </div>
+            <nav class="flex-1 space-y-1">
+                <button onclick="setView('dashboard')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left hover:bg-white/5" data-view="dashboard">
+                    <i class="fas fa-th-large w-5 text-center"></i> Dashboard
+                </button>
+                <button onclick="setView('tasks')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left hover:bg-white/5" data-view="tasks">
+                    <i class="fas fa-list w-5 text-center"></i> All Tasks
+                </button>
+                <button onclick="setView('achievements')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left hover:bg-white/5" data-view="achievements">
+                    <i class="fas fa-trophy w-5 text-center"></i> Achievements
+                </button>
+                <button onclick="setView('activity')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left hover:bg-white/5" data-view="activity">
+                    <i class="fas fa-history w-5 text-center"></i> Activity
+                </button>
+                <button onclick="setView('guide')" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left hover:bg-white/5" data-view="guide">
+                    <i class="fas fa-book w-5 text-center"></i> Guide
+                </button>
+            </nav>
+            <div class="space-y-3">
+                <div class="glass rounded-xl p-4">
+                    <div class="text-xs text-gray-500 mb-1">Total Score</div>
+                    <div id="sidebar-score" class="text-2xl font-bold">0</div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="exportData()" class="flex-1 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-xs" title="Export"><i class="fas fa-download"></i></button>
+                    <button onclick="document.getElementById('import-file').click()" class="flex-1 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-xs" title="Import"><i class="fas fa-upload"></i></button>
+                    <input type="file" id="import-file" class="hidden" accept=".json" onchange="importData(event)">
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="flex-1 ml-64 p-8">
+            <header class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 id="page-title" class="text-2xl font-bold">Dashboard</h1>
+                    <p id="page-subtitle" class="text-gray-500">Overview of your tasks</p>
+                </div>
+                <div class="flex gap-3">
+                    <div class="relative">
+                        <input id="search-input" type="text" placeholder="Search tasks..." oninput="filterTasks()" class="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 pl-10 w-64 focus:outline-none focus:border-indigo-500">
+                        <i class="fas fa-search absolute left-4 top-3 text-gray-500"></i>
+                    </div>
+                    <button onclick="applyDaily()" class="px-5 py-2.5 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 flex items-center gap-2">
+                        <i class="fas fa-sun"></i> Daily +
+                    </button>
+                    <button onclick="showModal()" class="btn-primary px-5 py-2.5 rounded-xl text-white font-medium flex items-center gap-2">
+                        <i class="fas fa-plus"></i> Add Task
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dashboard -->
+            <div id="view-dashboard">
+                <div class="grid grid-cols-3 gap-6 mb-6">
+                    <!-- Score Card -->
+                    <div class="glass rounded-2xl p-8 text-center col-span-2">
+                        <p class="text-gray-400 text-sm uppercase tracking-widest mb-2">Neutrality Score</p>
+                        <div id="hero-score" class="text-7xl font-black mb-3">0</div>
+                        <p id="hero-msg" class="text-gray-400">Loading...</p>
+                    </div>
+                    <!-- Weekly Progress -->
+                    <div class="glass rounded-2xl p-6">
+                        <h3 class="text-sm font-medium text-gray-400 mb-4"><i class="fas fa-chart-bar mr-2"></i>This Week</h3>
+                        <div id="weekly-chart" class="flex items-end justify-between h-32 gap-1"></div>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="grid grid-cols-5 gap-4 mb-6">
+                    <div class="glass rounded-xl p-4 card"><div class="text-2xl font-bold" id="s-total">0</div><div class="text-gray-500 text-xs">Total</div></div>
+                    <div class="glass rounded-xl p-4 card"><div class="text-2xl font-bold text-red-400" id="s-critical">0</div><div class="text-gray-500 text-xs">Critical</div></div>
+                    <div class="glass rounded-xl p-4 card"><div class="text-2xl font-bold text-orange-400" id="s-attention">0</div><div class="text-gray-500 text-xs">Attention</div></div>
+                    <div class="glass rounded-xl p-4 card"><div class="text-2xl font-bold text-emerald-400" id="s-ahead">0</div><div class="text-gray-500 text-xs">Ahead</div></div>
+                    <div class="glass rounded-xl p-4 card"><div class="text-2xl font-bold text-amber-400" id="s-streak">0🔥</div><div class="text-gray-500 text-xs">Best Streak</div></div>
+                </div>
+
+                <!-- Filter Buttons -->
+                <div class="flex gap-2 mb-4">
+                    <button onclick="setFilter('')" class="filter-btn px-4 py-2 rounded-lg bg-white/10 text-sm" data-filter="">All</button>
+                    <button onclick="setFilter('critical')" class="filter-btn px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-red-400" data-filter="critical">Critical</button>
+                    <button onclick="setFilter('attention')" class="filter-btn px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-orange-400" data-filter="attention">Attention</button>
+                    <button onclick="setFilter('ahead')" class="filter-btn px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm text-emerald-400" data-filter="ahead">Ahead</button>
+                </div>
+
+                <!-- Tasks Grid -->
+                <div id="task-grid" class="grid grid-cols-3 gap-4"></div>
+            </div>
+
+            <!-- All Tasks Table -->
+            <div id="view-tasks" class="hidden">
+                <div class="glass rounded-2xl overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-white/5"><tr class="text-gray-400 text-sm">
+                            <th class="text-left p-4">Task</th><th class="text-center p-4">Score</th><th class="text-center p-4">Streak</th>
+                            <th class="text-center p-4">Category</th><th class="text-center p-4">Done</th><th class="text-right p-4">Actions</th>
+                        </tr></thead>
+                        <tbody id="task-table"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Achievements -->
+            <div id="view-achievements" class="hidden">
+                <div class="grid grid-cols-3 gap-4" id="achievements-grid"></div>
+            </div>
+
+            <!-- Activity -->
+            <div id="view-activity" class="hidden">
+                <div class="glass rounded-2xl p-6"><div id="log-list" class="space-y-3"></div></div>
+            </div>
+
+            <!-- Guide -->
+            <div id="view-guide" class="hidden space-y-6">
+                <div class="glass rounded-2xl p-8">
+                    <h2 class="text-2xl font-bold mb-4"><i class="fas fa-lightbulb text-amber-400 mr-3"></i>What is TaskFlow?</h2>
+                    <p class="text-gray-300 leading-relaxed mb-4">TaskFlow is a <strong class="text-white">self-balancing task manager</strong> using a numerical scoring system. Your goal is to keep your <strong class="text-indigo-400">Neutrality Score at 0 or below</strong>.</p>
+                </div>
+                <div class="glass rounded-2xl p-8">
+                    <h2 class="text-xl font-bold mb-4"><i class="fas fa-calculator text-purple-400 mr-3"></i>Scoring System</h2>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="bg-white/5 rounded-xl p-4"><h4 class="font-semibold mb-2"><i class="fas fa-arrow-up text-orange-400 mr-2"></i>Daily Increment</h4><p class="text-gray-400 text-sm">Tasks gain points daily. Click "Daily +" each morning.</p></div>
+                        <div class="bg-white/5 rounded-xl p-4"><h4 class="font-semibold mb-2"><i class="fas fa-check text-emerald-400 mr-2"></i>Completion</h4><p class="text-gray-400 text-sm">Each completion reduces score by 1.</p></div>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-center gap-3 bg-red-500/10 rounded-lg p-3"><span class="text-red-400 font-bold w-12">6+</span><span class="text-gray-300">Critical - Needs immediate attention!</span></div>
+                        <div class="flex items-center gap-3 bg-orange-500/10 rounded-lg p-3"><span class="text-orange-400 font-bold w-12">1-5</span><span class="text-gray-300">Attention - Task falling behind</span></div>
+                        <div class="flex items-center gap-3 bg-gray-500/10 rounded-lg p-3"><span class="text-gray-400 font-bold w-12">0</span><span class="text-gray-300">Balanced - Perfect!</span></div>
+                        <div class="flex items-center gap-3 bg-emerald-500/10 rounded-lg p-3"><span class="text-emerald-400 font-bold w-12">-</span><span class="text-gray-300">Ahead - You're doing great!</span></div>
+                    </div>
+                </div>
+                <div class="glass rounded-2xl p-8">
+                    <h2 class="text-xl font-bold mb-4"><i class="fas fa-fire text-orange-400 mr-3"></i>Streaks</h2>
+                    <p class="text-gray-300">Complete tasks on consecutive days to build streaks! Earn achievements for 3, 7, and 30 day streaks.</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Modal -->
+        <div id="modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50">
+            <div class="glass rounded-2xl p-8 w-full max-w-md mx-4 animate-in">
+                <h3 id="modal-title" class="text-xl font-bold mb-6">Add Task</h3>
+                <form id="task-form" class="space-y-4">
+                    <input type="hidden" id="edit-id">
+                    <div><label class="block text-gray-400 text-sm mb-2">Name *</label><input id="f-name" required class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500" placeholder="e.g., Daily Exercise"></div>
+                    <div><label class="block text-gray-400 text-sm mb-2">Description</label><textarea id="f-desc" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 h-16 resize-none focus:outline-none focus:border-indigo-500" placeholder="Optional..."></textarea></div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="block text-gray-400 text-sm mb-2">Initial Score</label><input id="f-score" type="number" value="0" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3"></div>
+                        <div><label class="block text-gray-400 text-sm mb-2">Daily +</label><input id="f-inc" type="number" value="1" min="1" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="block text-gray-400 text-sm mb-2">Category</label><select id="f-cat" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3"><option>General</option><option>Work</option><option>Health</option><option>Learning</option><option>Personal</option></select></div>
+                        <div><label class="block text-gray-400 text-sm mb-2">Priority</label><select id="f-pri" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option></select></div>
+                    </div>
+                    <div class="flex gap-3 pt-2">
+                        <button type="button" onclick="hideModal()" class="flex-1 bg-white/5 hover:bg-white/10 py-3 rounded-xl font-medium">Cancel</button>
+                        <button type="submit" class="flex-1 btn-primary py-3 rounded-xl font-medium text-white">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="toast" class="fixed bottom-6 right-6 glass rounded-xl p-4 hidden animate-in max-w-sm">
+            <div class="flex items-center gap-3">
+                <div id="toast-icon" class="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center"><i class="fas fa-check"></i></div>
+                <div><div id="toast-title" class="font-medium">Success</div><div id="toast-msg" class="text-gray-400 text-sm"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const API = '';
+    let tasks = [], currentFilter = '', searchQuery = '';
+
+    function setView(v) {
+        document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+        document.getElementById('view-' + v).classList.remove('hidden');
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('bg-white/10', 'text-indigo-400'));
+        document.querySelector(`[data-view="${v}"]`).classList.add('bg-white/10', 'text-indigo-400');
+        const titles = { dashboard: ['Dashboard', 'Overview'], tasks: ['All Tasks', 'Manage tasks'], achievements: ['Achievements', 'Your progress'], activity: ['Activity', 'Recent actions'], guide: ['User Guide', 'How to use'] };
+        document.getElementById('page-title').textContent = titles[v][0];
+        document.getElementById('page-subtitle').textContent = titles[v][1];
+        loadData();
+    }
+
+    function setFilter(f) {
+        currentFilter = f;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('bg-white/10'));
+        document.querySelector(`[data-filter="${f}"]`).classList.add('bg-white/10');
+        renderTasks();
+    }
+
+    function filterTasks() {
+        searchQuery = document.getElementById('search-input').value.toLowerCase();
+        renderTasks();
+    }
+
+    async function loadData() {
+        const [statsRes, tasksRes, logsRes, weekRes, achieveRes] = await Promise.all([
+            fetch(API+'/api/stats'), fetch(API+'/api/tasks'), fetch(API+'/api/logs'),
+            fetch(API+'/api/weekly-progress'), fetch(API+'/api/achievements')
+        ]);
+        const stats = await statsRes.json();
+        tasks = await tasksRes.json();
+        const logs = await logsRes.json();
+        const week = await weekRes.json();
+        const achievements = await achieveRes.json();
+
+        // Stats
+        const score = stats.total_score;
+        const heroEl = document.getElementById('hero-score');
+        heroEl.textContent = score;
+        heroEl.className = 'text-7xl font-black mb-3 ' + getScoreClass(score);
+        document.getElementById('sidebar-score').textContent = score;
+        document.getElementById('sidebar-score').className = 'text-2xl font-bold ' + getScoreClass(score);
+        document.getElementById('hero-msg').textContent = score > 5 ? "⚠️ Focus needed!" : score > 0 ? "📋 Some tasks need attention" : score < 0 ? "🎉 You're ahead!" : "✨ Perfect balance!";
+        document.getElementById('s-total').textContent = stats.task_count;
+        document.getElementById('s-critical').textContent = stats.critical;
+        document.getElementById('s-attention').textContent = stats.attention;
+        document.getElementById('s-ahead').textContent = stats.ahead;
+        document.getElementById('s-streak').textContent = stats.best_streak + '🔥';
+
+        // Weekly chart
+        const maxComp = Math.max(...week.map(d => d.completions), 1);
+        document.getElementById('weekly-chart').innerHTML = week.map(d => `
+            <div class="flex-1 flex flex-col items-center gap-1">
+                <div class="w-full bg-indigo-500/30 rounded-t" style="height: ${(d.completions/maxComp)*100}%"></div>
+                <span class="text-xs text-gray-500">${d.day}</span>
+                <span class="text-xs font-medium">${d.completions}</span>
+            </div>
+        `).join('');
+
+        renderTasks();
+
+        // Table
+        document.getElementById('task-table').innerHTML = tasks.map(t => `
+            <tr class="border-t border-white/5 hover:bg-white/5">
+                <td class="p-4"><div class="font-medium">${esc(t.name)}</div><div class="text-gray-500 text-sm">${esc(t.description||'')}</div></td>
+                <td class="p-4 text-center"><span class="text-xl font-bold ${getScoreClass(t.score)}">${t.score > 0 ? '+' : ''}${t.score}</span></td>
+                <td class="p-4 text-center">${t.streak > 0 ? '<span class="text-orange-400">'+t.streak+'🔥</span>' : '-'}</td>
+                <td class="p-4 text-center"><span class="px-3 py-1 rounded-full bg-white/5 text-sm">${t.category}</span></td>
+                <td class="p-4 text-center text-gray-400">${t.completion_count}</td>
+                <td class="p-4 text-right">
+                    <button onclick="complete(${t.id})" class="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 mr-1"><i class="fas fa-check"></i></button>
+                    <button onclick="editTask(${t.id})" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 mr-1"><i class="fas fa-pen"></i></button>
+                    <button onclick="delTask(${t.id})" class="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+
+        // Logs
+        document.getElementById('log-list').innerHTML = logs.map(l => `
+            <div class="glass rounded-xl p-4 flex items-center gap-4 animate-in">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center ${l.action==='completed'?'bg-emerald-500/20 text-emerald-400':l.action==='created'?'bg-blue-500/20 text-blue-400':l.action==='deleted'?'bg-red-500/20 text-red-400':'bg-amber-500/20 text-amber-400'}">
+                    <i class="fas fa-${l.action==='completed'?'check':l.action==='created'?'plus':l.action==='deleted'?'trash':'sun'}"></i>
+                </div>
+                <div class="flex-1"><div class="font-medium">${esc(l.task_name||'System')}</div><div class="text-gray-500 text-sm">${esc(l.details||l.action)}</div></div>
+                <div class="text-gray-500 text-sm">${timeAgo(l.timestamp)}</div>
+            </div>
+        `).join('') || '<div class="text-center text-gray-500 py-8">No activity</div>';
+
+        // Achievements
+        document.getElementById('achievements-grid').innerHTML = achievements.map(a => `
+            <div class="glass rounded-2xl p-6 text-center ${a.unlocked ? '' : 'opacity-40'}">
+                <div class="text-4xl mb-3">${a.icon}</div>
+                <div class="font-semibold">${a.name}</div>
+                <div class="text-gray-500 text-sm">${a.desc}</div>
+                ${a.unlocked ? '<div class="mt-2 text-emerald-400 text-xs"><i class="fas fa-check mr-1"></i>Unlocked</div>' : ''}
+            </div>
+        `).join('');
+
+        // Check critical tasks for notification
+        if (stats.critical > 0) {
+            const critical = await (await fetch(API+'/api/critical')).json();
+            if (critical.length > 0 && Notification.permission === 'granted') {
+                // Browser notification handled below
+            }
+        }
+    }
+
+    function renderTasks() {
+        let filtered = [...tasks];
+        if (currentFilter === 'critical') filtered = filtered.filter(t => t.score > 5);
+        else if (currentFilter === 'attention') filtered = filtered.filter(t => t.score > 0 && t.score <= 5);
+        else if (currentFilter === 'ahead') filtered = filtered.filter(t => t.score < 0);
+        if (searchQuery) filtered = filtered.filter(t => t.name.toLowerCase().includes(searchQuery) || (t.description||'').toLowerCase().includes(searchQuery));
+
+        document.getElementById('task-grid').innerHTML = filtered.map(t => `
+            <div class="glass rounded-2xl p-5 card priority-${t.priority}">
+                <div class="flex justify-between items-start mb-3">
+                    <div><h4 class="font-semibold">${esc(t.name)}</h4><span class="text-xs text-gray-500">${t.category}</span></div>
+                    <div class="flex gap-1">
+                        ${t.streak > 0 ? `<span class="px-2 py-1 rounded-lg bg-orange-500/20 text-orange-400 text-xs streak-fire">${t.streak}🔥</span>` : ''}
+                        <button onclick="editTask(${t.id})" class="w-7 h-7 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"><i class="fas fa-pen text-xs"></i></button>
+                        <button onclick="delTask(${t.id})" class="w-7 h-7 rounded-lg hover:bg-red-500/20 text-gray-400 hover:text-red-400"><i class="fas fa-trash text-xs"></i></button>
+                    </div>
+                </div>
+                <div class="text-center py-3">
+                    <div class="text-4xl font-black ${getScoreClass(t.score)}">${t.score > 0 ? '+' : ''}${t.score}</div>
+                    <div class="text-gray-500 text-sm mt-1">Daily +${t.daily_increment}</div>
+                </div>
+                <button onclick="complete(${t.id})" class="w-full mt-3 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 py-2.5 rounded-xl font-medium"><i class="fas fa-check mr-2"></i>Complete (-1)</button>
+            </div>
+        `).join('') || '<div class="col-span-3 text-center text-gray-500 py-12">No tasks found</div>';
+    }
+
+    function getScoreClass(s) {
+        return s > 5 ? 'score-critical' : s > 0 ? 'score-attention' : s < 0 ? 'score-ahead' : 'score-balanced';
+    }
+
+    async function complete(id) {
+        const res = await fetch(API+'/api/tasks/'+id+'/complete', {method:'POST'});
+        const data = await res.json();
+        if (data.streak > 1) showToast('🔥 Streak!', `${data.streak} day streak!`, 'streak');
+        loadData();
+    }
+
+    async function delTask(id) { if(confirm('Delete?')) { await fetch(API+'/api/tasks/'+id, {method:'DELETE'}); loadData(); } }
+    async function applyDaily() { if(confirm('Apply daily increment?')) { await fetch(API+'/api/daily-increment', {method:'POST'}); showToast('☀️ Daily Applied', 'All tasks incremented'); loadData(); } }
+
+    function showModal() {
+        document.getElementById('modal-title').textContent = 'Add Task';
+        document.getElementById('edit-id').value = '';
+        document.getElementById('f-name').value = '';
+        document.getElementById('f-desc').value = '';
+        document.getElementById('f-score').value = '0';
+        document.getElementById('f-inc').value = '1';
+        document.getElementById('f-cat').value = 'General';
+        document.getElementById('f-pri').value = 'medium';
+        document.getElementById('modal').classList.remove('hidden');
+        document.getElementById('modal').classList.add('flex');
+        document.getElementById('f-name').focus();
+    }
+
+    function editTask(id) {
+        const t = tasks.find(x => x.id === id);
+        if (!t) return;
+        document.getElementById('modal-title').textContent = 'Edit Task';
+        document.getElementById('edit-id').value = id;
+        document.getElementById('f-name').value = t.name;
+        document.getElementById('f-desc').value = t.description || '';
+        document.getElementById('f-score').value = t.score;
+        document.getElementById('f-inc').value = t.daily_increment;
+        document.getElementById('f-cat').value = t.category;
+        document.getElementById('f-pri').value = t.priority;
+        document.getElementById('modal').classList.remove('hidden');
+        document.getElementById('modal').classList.add('flex');
+    }
+
+    function hideModal() {
+        document.getElementById('modal').classList.add('hidden');
+        document.getElementById('modal').classList.remove('flex');
+    }
+
+    document.getElementById('task-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-id').value;
+        const data = {
+            name: document.getElementById('f-name').value,
+            description: document.getElementById('f-desc').value,
+            score: parseInt(document.getElementById('f-score').value) || 0,
+            daily_increment: parseInt(document.getElementById('f-inc').value) || 1,
+            category: document.getElementById('f-cat').value,
+            priority: document.getElementById('f-pri').value
+        };
+        if (id) await fetch(API+'/api/tasks/'+id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+        else await fetch(API+'/api/tasks', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+        hideModal();
+        showToast('✅ Saved', id ? 'Task updated' : 'Task created');
+        loadData();
+    };
+
+    async function exportData() {
+        const res = await fetch(API+'/api/export');
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'taskflow-backup-' + new Date().toISOString().split('T')[0] + '.json';
+        a.click();
+        showToast('📦 Exported', 'Backup downloaded');
+    }
+
+    async function importData(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (confirm(`Import ${data.tasks?.length || 0} tasks? This will replace all existing data.`)) {
+            await fetch(API+'/api/import', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+            showToast('📥 Imported', 'Data restored');
+            loadData();
+        }
+        e.target.value = '';
+    }
+
+    function showToast(title, msg, type='success') {
+        const toast = document.getElementById('toast');
+        const iconEl = document.getElementById('toast-icon');
+        document.getElementById('toast-title').textContent = title;
+        document.getElementById('toast-msg').textContent = msg;
+        iconEl.className = 'w-10 h-10 rounded-full flex items-center justify-center ' + 
+            (type==='streak' ? 'bg-orange-500/20 text-orange-400' : 'bg-emerald-500/20 text-emerald-400');
+        iconEl.innerHTML = type==='streak' ? '<i class="fas fa-fire"></i>' : '<i class="fas fa-check"></i>';
+        toast.classList.remove('hidden');
+        setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function timeAgo(ts) {
+        if (!ts) return '';
+        const diff = Date.now() - new Date(ts).getTime();
+        if (diff < 60000) return 'Just now';
+        if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+        if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+        return new Date(ts).toLocaleDateString();
+    }
+
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+
+    document.addEventListener('keydown', e => { if(e.key==='Escape') hideModal(); });
+    setView('dashboard');
+    setInterval(loadData, 30000);
+    </script>
+</body>
+</html>

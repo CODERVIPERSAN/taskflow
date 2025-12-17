@@ -1,72 +1,21 @@
+# TaskFlow - Self-Balancing Task Manager
+# Python Requirements
+# Install: pip install -r requirements.txt
 
+# Web Framework
+Flask==3.0.0
 
+# CORS Support (Cross-Origin Resource Sharing)
+Flask-Cors==4.0.0
 
-Your app idea is a **self-balancing task manager** with a unique **numerical feedback system**. Here's a structured summary of your concept:
+# WSGI Server (Production)
+gunicorn==21.2.0
 
----
+# Database (SQLite is built-in, but these are useful utilities)
+# sqlite3 is included in Python standard library
 
-### 🧠 **App Concept: Self-Balancing Task Manager**
+# Optional: For better datetime handling
+python-dateutil==2.8.2
 
-#### 🔧 **Core Logic:**
-
-* Each task or category (e.g., physical, learning, design) starts with a numerical value.
-* Each **day**, tasks **increment by a fixed value** (e.g., +3 for all, +5 for physical).
-* When a task is **completed**, its value **decreases by 1**.
-* The **goal** is to **bring the total score to 0 or below**, indicating a balanced or surplus performance.
-* This also accounts for:
-
-  * Overachieving (more tasks done than required → total < 0)
-  * Underachieving (incomplete tasks accumulate → total > 0)
-
----
-
-### 📊 **Example Task Categories:**
-
-From your screenshot:
-
-* **4** – design pattern, ievalo, backend
-* **11** – gfg, tuf, IITM, campus x
-* **-4** – GitHub recap, BDM schedule
-* **-13** – Duolingo, GRE prep, IELTS
-* **29** – pushups, pullups, sleep
-
----
-
-### 📈 **Features to Include:**
-
-1. **Daily Auto-Increment** (e.g., +3 general, +5 physical)
-2. **Manual Task Completion** button (-1 per task)
-3. **Neutrality Tracker** – live sum showing whether user is in surplus, balanced, or deficit
-4. **Trend Graph** – visualize your progress toward 0 or negative territory
-5. **Alerts/Notifications** – remind based on high scores or streak breaks
-6. **Task Log** – track what was done and when
-7. **Weighting System** – optionally allow different tasks to have different weights (+/-)
-
----
-
-### 🧠 **Why This Is Unique:**
-
-* Rather than focusing only on checking off tasks, it’s **system-driven** and **self-correcting**.
-* Encourages **consistent effort** while allowing flexibility.
-* Motivates through a **game-like score** system and **visual neutrality goal**.
-
----
-
-Would you like a basic mockup or code structure (e.g., in Flutter or React Native) for this app?
-
-
-
-
-
-###
-
-
-use Vuejs html css javascript and web app development using vue 
-
-and use flask for the make end 
-
-may be use sqlite if needed for conistency form the server 
-
-use tailwind and boostrap for the best ui"
-###
-compplete the full  app 
+# Optional: Environment variables
+python-dotenv==1.0.0
